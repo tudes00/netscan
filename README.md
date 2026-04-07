@@ -4,6 +4,7 @@ Fast network host discovery via ICMP and ARP, written in Bash.
 
 Scans a range of IPs in parallel, resolves hostnames, retrieves MAC addresses on local networks, and optionally exports results to CSV. Automatically switches between ARP (local) and ICMP (remote) depending on the target subnet.
 
+![demo](demo.svg)
 
 ## Requirements
 
