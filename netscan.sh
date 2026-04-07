@@ -1,7 +1,5 @@
 #!/bin/bash
 
-#TODO publish git
-#TODO EHEHEHEHEHEHEHEHEH TORP BG!!!
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -97,7 +95,7 @@ is_local_ip() {
   local ip_int=$1
   [[ $((ip_int & local_mask_int)) -eq "$local_network" ]]
 }
-./livehosts.sh
+
 if [[ "$MODE" == "ARP" && $EUID -ne 0 ]]; then
   echo -e "${YELLOW}Warning:${RESET} ARP requires root, switching to ICMP!"
   MODE="ICMP"
