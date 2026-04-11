@@ -1,5 +1,8 @@
 #!/bin/bash
 
+#INFO on windows, use `dos2unix netscan.sh` after each change
+
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -29,6 +32,24 @@ LIST='^([0-9]{1,3}\.){3}[0-9]{1,3}(,([0-9]{1,3}\.){3}[0-9]{1,3})*$'
 
 trap 'rm -f "$TMPFILE"' EXIT
 TMPFILE=$(mktemp) || exit 1
+
+check_deps() {
+  local missing=()
+
+  command -v fping   &>/dev/null || missing+=("fping")
+  command -v arping  &>/dev/null || missing+=("arping (iputils-arping)")
+  command -v dig     &>/dev/null || missing+=("dig (dnsutils / bind-utils)")
+  command -v ip      &>/dev/null || missing+=("ip (iproute2)")
+
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    echo -e "${RED}Error:${RESET} Missing dependencies:"
+    for dep in "${missing[@]}"; do
+      echo -e "  - $dep"
+    done
+    exit 1
+  fi
+}
+check_deps
 
 cleanup() {
   if ! $NOPROGRESS; then
