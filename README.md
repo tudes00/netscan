@@ -14,11 +14,11 @@ Scans a range of IPs in parallel, resolves hostnames, retrieves MAC addresses on
 - `bc` - timeout conversion for arping
 - `ip` - interface and address detection
 - `root` - required for sending packets
-- `figlet lolcat` - for banner...
+- `figlet` - for banner...
 
 ```bash
 # Debian / Ubuntu
-apt install fping arping dnsutils iproute2 figlet lolcat
+apt install fping arping dnsutils iproute2 figlet
 ```
 
 
