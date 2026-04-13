@@ -9,15 +9,16 @@ Scans a range of IPs in parallel, resolves hostnames, retrieves MAC addresses on
 ## Requirements
 
 - `fping` - ICMP ping
-- `arping` - ARP scanning
+- `arping` - ARP scanning (version by Thomas Habets)
 - `dig` - hostname resolution
 - `bc` - timeout conversion for arping
 - `ip` - interface and address detection
 - `root` - required for sending packets
+- `figlet lolcat` - for banner...
 
 ```bash
 # Debian / Ubuntu
-apt install fping arping dnsutils iproute2
+apt install fping arping dnsutils iproute2 figlet lolcat
 ```
 
 
@@ -124,5 +125,4 @@ If `--output` is set, results are appended to a CSV file:
 ---
 
 ## TODO
-- add the detection of arping version, if its the wrong version, tell the user to install the correct one, and exit.
 - add a banner

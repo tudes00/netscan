@@ -2,7 +2,6 @@
 
 #INFO on windows, use `dos2unix netscan.sh` after each change
 
-
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -33,13 +32,21 @@ LIST='^([0-9]{1,3}\.){3}[0-9]{1,3}(,([0-9]{1,3}\.){3}[0-9]{1,3})*$'
 trap 'rm -f "$TMPFILE"' EXIT
 TMPFILE=$(mktemp) || exit 1
 
+figlet -f smslant "NETscan" -t
+
 check_deps() {
   local missing=()
+  if command -v arping 2 &>/dev/null &>1; then
+    if ! arping --help | grep -q "Thomas"; then
+      echo "Wrong version of arping installed, you need the one by Thomas Habets"
+      exit 1
+    fi
+  fi
 
-  command -v fping   &>/dev/null || missing+=("fping")
-  command -v arping  &>/dev/null || missing+=("arping (iputils-arping)")
-  command -v dig     &>/dev/null || missing+=("dig (dnsutils / bind-utils)")
-  command -v ip      &>/dev/null || missing+=("ip (iproute2)")
+  command -v fping &>/dev/null || missing+=("fping")
+  command -v arping &>/dev/null || missing+=("arping (Thomas Habets)")
+  command -v dig &>/dev/null || missing+=("dig (dnsutils / bind-utils)")
+  command -v ip &>/dev/null || missing+=("ip (iproute2)")
 
   if [[ ${#missing[@]} -gt 0 ]]; then
     echo -e "${RED}Error:${RESET} Missing dependencies:"
@@ -49,6 +56,8 @@ check_deps() {
     exit 1
   fi
 }
+
+echo -e $BANNER
 check_deps
 
 cleanup() {
