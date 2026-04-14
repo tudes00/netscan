@@ -531,7 +531,7 @@ if ! $NOPROGRESS; then
 fi
 
 FOUND=$(wc -l <"$ALIVE_FILE")
-echo -e "\n${BOLD}Scan completed${RESET} in $(echo "$timeend - $timestart" | bc).$(printf "%03d" $((($(date +%N) / 1000000) % 1000)))s${RESET} - ${GREEN}${BOLD}$FOUND${RESET} IP(s) found!"
+echo -e "\n${BOLD}Scan completed${RESET} in $(echo "$timeend - $timestart" | bc).$(printf "%03d" $(((10#$(date +%N) / 1000000) % 1000)))s${RESET} - ${GREEN}${BOLD}$FOUND${RESET} IP(s) found!"
 [[ -n "$OUTPUT" ]] && echo -e "Results saved to ${CYAN}$OUTPUT${RESET}"
 
 exit 0
