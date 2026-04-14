@@ -119,10 +119,8 @@ If `--output` is set, results are appended to a CSV file:
 
 ## Notes
 
-- Root is required for ARP mode. Running without root falls back to ICMP automatically.
 - Large ranges (e.g. `/8`) should use reduced `--max-jobs` and increased `--timeout` to avoid overwhelming the system.
 
 ---
 
 ## TODO
-- latency
