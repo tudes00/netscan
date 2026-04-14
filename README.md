@@ -54,10 +54,10 @@ sudo mv netscan.sh /usr/local/bin/netscan
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `-t, --timeout <ms>` | `800` | Ping timeout in milliseconds |
-| `-j, --max-jobs <n>` | `400` | Max parallel jobs |
+| `-t, --timeout <ms>` | `110` | Ping timeout in milliseconds |
+| `-j, --max-jobs <n>` | `60` | Max parallel jobs |
 | `-i, --interface <iface>` | auto | Network interface (e.g. `eth0`, `wlan0`) |
-| `-r, --retry <n>` | `1` | Number of ping retries |
+| `-r, --retry <n>` | `2` | Number of ping retries |
 | `-o, --output <file>` | - | Save results to a CSV file |
 | `-e, --exclude <target>` | - | Exclude IPs (same formats as TARGET, repeatable) |
 | `-H, --no-hostname` | - | Skip hostname resolution |
@@ -94,7 +94,7 @@ sudo ./netscan.sh 8.8.8.8 -t 1500 -r 3 --icmp
 ## How it works
 
 - **Auto mode** (default): uses ARP for IPs on the local subnet, ICMP for everything else.
-- **Parallel scanning**: jobs are dispatched up to `--max-jobs` simultaneously, then throttled via `wait -n`.
+- **Parallel scanning**: jobs are dispatched up to `--max-jobs` simultaneously
 - **Hostname resolution**: reverse DNS via `dig -x`.
 
 ---
