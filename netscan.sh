@@ -10,11 +10,11 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 RESET='\033[0m'
 
-TIMEOUT=800
-MAX_JOBS=400
+TIMEOUT=1100
+MAX_JOBS=60
 HOSTNAME=true
 INTERFACE=""
-RETRY=1
+RETRY=2
 OUTPUT=""
 NOPROGRESS=false
 NOCOLOR=false
@@ -29,14 +29,23 @@ RANGE='^([0-9]{1,3}(\-[0-9]{1,3})?\.){3}[0-9]{1,3}(\-[0-9]{1,3})?$'
 EXCL_CIDR='^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}$'
 LIST='^([0-9]{1,3}\.){3}[0-9]{1,3}(,([0-9]{1,3}\.){3}[0-9]{1,3})*$'
 
-trap 'rm -f "$TMPFILE"' EXIT
-TMPFILE=$(mktemp) || exit 1
+ALIVE_FILE=$(mktemp) || exit 1
+DONE_FILE=$(mktemp) || exit 1
+
+FIFO="/tmp/netscan_fifo"
+mkfifo "$FIFO"
+exec 3<>"$FIFO"
+rm "$FIFO"
+
+for ((i = 0; i < MAX_JOBS; i++)); do
+  echo >&3
+done
 
 figlet -f smslant "NETscan" -t
 
 check_deps() {
   local missing=()
-  if command -v arping 2 &>/dev/null &>1; then
+  if command -v arping >/dev/null 2>&1; then
     if ! arping --help | grep -q "Thomas"; then
       echo "Wrong version of arping installed, you need the one by Thomas Habets"
       exit 1
@@ -61,6 +70,12 @@ echo -e $BANNER
 check_deps
 
 cleanup() {
+
+  if [[ -n "$CLEANED" ]]; then
+    return
+  fi
+  CLEANED=1
+
   if ! $NOPROGRESS; then
     kill $PROGRESS_PID 2>/dev/null
     wait $PROGRESS_PID 2>/dev/null
@@ -70,11 +85,20 @@ cleanup() {
     kill $JOBS 2>/dev/null
     wait $JOBS 2>/dev/null
   fi
+
+  rm -f "$ALIVE_FILE" "$DONE_FILE"
+
   echo -ne "\r\033[K"
-  echo -e "${YELLOW}Scan interrupted!${RESET}"
-  exit 1
+
+  if $INTERRUPTED; then
+    echo -e "${YELLOW}Scan interrupted!${RESET}"
+    exit 1
+  fi
 }
-trap cleanup SIGINT
+
+INTERRUPTED=false
+trap 'INTERRUPTED=true; cleanup' SIGINT
+trap cleanup EXIT
 
 int_to_ip() {
   local int=$1
@@ -147,10 +171,10 @@ help() {
   echo -e "                              List:    ${YELLOW}192.168.1.1,192.168.1.5${RESET}"
   echo ""
   echo -e "${BOLD}Options:${RESET}"
-  echo -e "  ${CYAN}-t, --timeout <ms>${RESET}        Ping timeout in milliseconds (default: 800)"
-  echo -e "  ${CYAN}-j, --max-jobs <n>${RESET}        Max parallel jobs (default: 400)"
+  echo -e "  ${CYAN}-t, --timeout <ms>${RESET}        Ping timeout in milliseconds (default: 1100)"
+  echo -e "  ${CYAN}-j, --max-jobs <n>${RESET}        Max parallel jobs (default: 60)"
   echo -e "  ${CYAN}-i, --interface <iface>${RESET}   Network interface to use (ex: eth0, wlan0)"
-  echo -e "  ${CYAN}-r, --retry <n>${RESET}           Number of ping retries (default: 1)"
+  echo -e "  ${CYAN}-r, --retry <n>${RESET}           Number of ping retries (default: 2)"
   echo -e "  ${CYAN}-o, --output <file>${RESET}       Save results to CSV file (ex: results.csv)"
   echo -e "  ${CYAN}-e, --exclude <target>${RESET}    Exclude IPs from scan (same formats as TARGET)"
   echo -e "  ${CYAN}-H, --no-hostname${RESET}         Skip hostname resolution (faster)"
@@ -383,7 +407,7 @@ fi
 timestart=$(date +%s)
 timeend=0
 
-echo -e "${BOLD}${BLUE}Scanning${RESET} $(
+echo -e "${BOLD}Scanning${RESET} $(
   [[ "$TARGET_TYPE" == "SINGLE" ]] &&
     echo "$TARGET" ||
     [[ "$TARGET_TYPE" =~ ^(LIST|RANGE)$ ]] &&
@@ -398,7 +422,10 @@ echo -e "${BOLD}${BLUE}Scanning${RESET} $(
 
 print_progress() {
   while true; do
-    done=$(wc -l <"$TMPFILE")
+    done=$(wc -l <"$DONE_FILE")
+
+    [[ $total -eq 0 ]] && total=1
+
     percent=$(($done * 100 / total))
     filled=$((percent / 2))
     empty=$((50 - filled))
@@ -420,7 +447,9 @@ fi
 
 scan_ip() {
   local IP=$1
-  [[ -n "${EXCLUDE_IPS[$IP]}" ]] && { echo 1 >>"$TMPFILE" && return; }
+  [[ -n "${EXCLUDE_IPS[$IP]}" ]] && { echo 1 >>"$DONE_FILE" && return; }
+
+  read -u 3
 
   {
     alive=false
@@ -437,14 +466,32 @@ scan_ip() {
       fi
     fi
 
+    latency=""
+    MAC=""
+
     if [[ "$CURRENT_MODE" == "ICMP" ]]; then
-      fping -c $RETRY -t $TIMEOUT ${INTERFACE:+-I $INTERFACE} "$IP" &>/dev/null && alive=true
+
+      for ((i = 0; i < RETRY; i++)); do
+        if result=$(fping -c 1 -t $TIMEOUT ${INTERFACE:+-I $INTERFACE} "$IP" 2>&1); then
+          alive=true
+          latency=$(echo "$result" | grep -oE '[0-9.]+ ms' | head -n1 | awk '{print $1}')
+          break
+        fi
+      done
+
     elif [[ "$CURRENT_MODE" == "ARP" ]]; then
-      result=$(arping -c $RETRY -w $(echo "scale=2; $TIMEOUT / 1000" | bc -l) ${INTERFACE:+-I $INTERFACE} "$IP" 2>/dev/null)
-      if result=$(arping -c $RETRY -w $(echo "scale=2; $TIMEOUT / 1000" | bc -l) ${INTERFACE:+-I $INTERFACE} "$IP" 2>/dev/null); then
-        alive=true
-        MAC=$(echo "$result" | grep -oE '([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}' | head -n1)
-      fi
+
+      for ((i = 0; i < RETRY; i++)); do
+        result=$(arping -c 1 -w $(awk "BEGIN {printf \"%.2f\", $TIMEOUT/1000}") ${INTERFACE:+-I $INTERFACE} "$IP" 2>/dev/null)
+
+        if echo "$result" | grep -q "bytes from"; then
+          alive=true
+          latency=$(echo "$result" | awk -F'=' '/rtt/ {split($2,a,"/"); print a[2]}')
+          MAC=$(echo "$result" | grep -oE '([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}' | head -n1)
+          break
+        fi
+      done
+
     fi
     if $alive; then
       hostname=""
@@ -453,18 +500,14 @@ scan_ip() {
         [[ -z "$hostname" ]] && hostname="Unknown"
       fi
       echo -ne "\r\033[K"
-      echo -e "${GREEN}●${RESET} ${BOLD}$IP${RESET} is alive${hostname:+ - ${GREEN}$hostname${RESET} ${MAC:+- ${CYAN}$MAC}${RESET}}"
+      echo -e "${GREEN}●${RESET} ${BOLD}$IP${RESET} is alive${hostname:+ - ${GREEN}$hostname${RESET}}${MAC:+ - ${CYAN}$MAC${RESET}}${latency:+ - ${BLUE}$latency ms${RESET}}"
       [[ -n "$OUTPUT" ]] && echo "$IP${hostname:+,$hostname}" >>"$OUTPUT"
-      echo "ALIVE" >>"$TMPFILE"
-    else
-      echo 1 >>"$TMPFILE"
+      echo 1 >>"$ALIVE_FILE"
     fi
+
+    echo 1 >>"$DONE_FILE"
+    echo >&3
   } &
-
-  while (($(jobs -r -p | wc -l || echo 0) >= ${MAX_JOBS:-400})); do
-    wait -n
-  done
-
 }
 
 if [[ ${#TARGET_IPS[@]} -gt 0 ]]; then
@@ -487,8 +530,8 @@ if ! $NOPROGRESS; then
   wait $PROGRESS_PID 2>/dev/null
 fi
 
-FOUND=$(grep -c "ALIVE" "$TMPFILE")
-echo -e "\n${BOLD}Scan completed${RESET} in ${YELLOW}$((timeend - timestart))s${RESET} - ${GREEN}${BOLD}$FOUND${RESET} IP(s) found!"
+FOUND=$(wc -l <"$ALIVE_FILE")
+echo -e "\n${BOLD}Scan completed${RESET} in $(echo "$timeend - $timestart" | bc).$(printf "%03d" $((($(date +%N) / 1000000) % 1000)))s${RESET} - ${GREEN}${BOLD}$FOUND${RESET} IP(s) found!"
 [[ -n "$OUTPUT" ]] && echo -e "Results saved to ${CYAN}$OUTPUT${RESET}"
 
 exit 0

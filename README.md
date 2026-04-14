@@ -125,4 +125,4 @@ If `--output` is set, results are appended to a CSV file:
 ---
 
 ## TODO
-- add a banner
+- latency
